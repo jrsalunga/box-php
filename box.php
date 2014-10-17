@@ -8,7 +8,7 @@ class Box
     /**
      * @var array
      */
-    protected $box;
+    protected $container;
 
     /**
      * Construct
@@ -17,47 +17,54 @@ class Box
      */
     public function __construct(array $list = null)
     {
-        $this->box = $list ?: [];
+        if ($list)
+        {
+            foreach ($list as $key => $value)
+            {
+                if ($value instanceof \Closure) $this->bind($key, $value);
+            }
+        }
     }
 
     /**
      * Map a factory against a name
      *
-     * @param string $name
+     * @param string   $name
      * @param callable $factory
      */
-    public function register($name, callable $factory)
+    public function bind($name, \Closure $factory)
     {
-        $this->box[$name] = $factory;
+        $this->container[$name] = $factory;
     }
 
     /**
      * Looks up and executes the factory for the specified name
      *
      * @param  string $name
+     *
      * @return mixed
      */
-    public function resolve($name)
+    public function make($name)
     {
-        return isset($this->box[$name]) ? $this->box[$name]() : null;
+        return isset($this->container[$name]) ? $this->container[$name]() : null;
     }
 
     /**
      * Wraps a factory so it's only invoked once, and caches its value
      *
-     * @param  callable $factory
+     * @param callable $factory
+     *
      * @return callable
      */
-    public function shared(callable $factory)
+    public function shared(\Closure $factory)
     {
-        $inst = null;
+        $instance = null;
 
-        return function () use (&$inst, $factory) {
-            if ($inst === null) {
-                $inst = $factory();
-            }
+        return function () use (&$instance, $factory)
+        {
+            if ($instance === null) $instance = $factory();
 
-            return $inst;
+            return $instance;
         };
     }
 
@@ -65,31 +72,59 @@ class Box
      * Creates a factory that returns the passed value in $any
      *
      * @param  mixed $any
+     *
      * @return callable
      */
     public function value($any)
     {
-        return function () use ($any) { return $any; };
+        return function () use ($any)
+        {
+            return $any;
+        };
     }
 
     /**
-     * Wrap a callable, providing dependencies during call-time
+     * Wrap a \Closure, providing dependencies during call-time
      *
-     * @param  array $deps
-     * @param  callable $func
+     * @param  array    $dependencies
+     * @param  callable $function
+     *
      * @return callable
      */
-    public function provide(array $deps, callable $func)
+    public function provide(array $dependencies, \Closure $function)
     {
-        return function () use ($deps, $func) {
-            $args = [];
+        return function () use ($dependencies, $function)
+        {
+            $arguments = [];
 
-            foreach ($deps as $dep) {
-                $args[] = $this->resolve($dep);
+            foreach ($dependencies as $dependency)
+            {
+                $arguments[] = $this->make($dependency);
             }
 
-            #return $func(...$args); //PHP5.6
-            return call_user_func_array($func, $args); //PHP5
+            return $function(...$arguments); //return call_user_func_array($function, $arguments);
         };
+    }
+
+    /**
+     * Map a shared factory against a name
+     *
+     * @param string   $name
+     * @param callable $factory
+     */
+    public function bindShared($name, \Closure $factory)
+    {
+        $this->bind($name, $this->shared($factory));
+    }
+
+    /**
+     * Maps a string against a name
+     *
+     * @param string $name
+     * @param string $any
+     */
+    public function bindValue($name, $any)
+    {
+        $this->bind($name, $this->value($any));
     }
 }
