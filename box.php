@@ -2,8 +2,6 @@
 
 /**
  * Box
- *
- * @see https://github.com/noodlehaus/ioc/blob/master/ioc.php
  */
 class Box
 {
